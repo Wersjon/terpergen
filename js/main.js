@@ -128,7 +128,6 @@ function init() {
   
   setUpLights();
   createWater();
-  createTerrain();
   createTerrain(url);
 
   let geometry = new THREE.SphereGeometry(12, 32, 32 );

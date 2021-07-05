@@ -4,6 +4,8 @@ import {
 	Vector3
 } from './three.module.js';
 
+// TODO: remove FPC and replace it with my own module [based on this], with some clipping.
+
 const _lookDirection = new Vector3();
 const _spherical = new Spherical();
 const _target = new Vector3();
@@ -27,11 +29,11 @@ class FirstPersonControls {
 		this.enabled = true;
 
 		this.movementSpeed = 1.0;
+		this.additionalSpeed = 0.0;
 		this.lookSpeed = 0.005;
 
 		this.lookVertical = true;
 		this.autoForward = false;
-
 		this.activeLook = true;
 
 		this.heightSpeed = false;
@@ -42,8 +44,6 @@ class FirstPersonControls {
 		this.constrainVertical = false;
 		this.verticalMin = 0;
 		this.verticalMax = Math.PI;
-
-		this.mouseDragOn = false;
 
 		// internals
 
@@ -65,8 +65,6 @@ class FirstPersonControls {
 		let lat = 0;
 		let lon = 0;
 
-		//
-
 		this.handleResize = function () {
 
 			if ( this.domElement === document ) {
@@ -80,50 +78,6 @@ class FirstPersonControls {
 				this.viewHalfY = this.domElement.offsetHeight / 2;
 
 			}
-
-		};
-
-		this.onMouseDown = function ( event ) {
-
-			if ( this.domElement !== document ) {
-
-				this.domElement.focus();
-
-			}
-
-			event.preventDefault();
-
-			if ( this.activeLook ) {
-
-				switch ( event.button ) {
-
-					case 0: this.moveForward = true; break;
-					case 2: this.moveBackward = true; break;
-
-				}
-
-			}
-
-			this.mouseDragOn = true;
-
-		};
-
-		this.onMouseUp = function ( event ) {
-
-			event.preventDefault();
-
-			if ( this.activeLook ) {
-
-				switch ( event.button ) {
-
-					case 0: this.moveForward = false; break;
-					case 2: this.moveBackward = false; break;
-
-				}
-
-			}
-
-			this.mouseDragOn = false;
 
 		};
 
@@ -163,15 +117,14 @@ class FirstPersonControls {
 
 				case 'KeyR': this.moveUp = true; break;
 				case 'KeyF': this.moveDown = true; break;
-
+        
+				case 'ShiftLeft': this.additionalSpeed = 96; break;
 			}
 
 		};
 
 		this.onKeyUp = function ( event ) {
-
 			switch ( event.code ) {
-
 				case 'ArrowUp':
 				case 'KeyW': this.moveForward = false; break;
 
@@ -186,7 +139,8 @@ class FirstPersonControls {
 
 				case 'KeyR': this.moveUp = false; break;
 				case 'KeyF': this.moveDown = false; break;
-
+        
+				case 'ShiftLeft': this.additionalSpeed = 0; break;
 			}
 
 		};
@@ -232,7 +186,7 @@ class FirstPersonControls {
 
 				}
 
-				const actualMoveSpeed = delta * this.movementSpeed;
+				const actualMoveSpeed = delta * (this.movementSpeed + this.additionalSpeed);
 
 				if ( this.moveForward || ( this.autoForward && ! this.moveBackward ) ) this.object.translateZ( - ( actualMoveSpeed + this.autoSpeedFactor ) );
 				if ( this.moveBackward ) this.object.translateZ( actualMoveSpeed );
@@ -288,9 +242,7 @@ class FirstPersonControls {
 		this.dispose = function () {
 
 			this.domElement.removeEventListener( 'contextmenu', contextmenu );
-			this.domElement.removeEventListener( 'mousedown', _onMouseDown );
 			this.domElement.removeEventListener( 'mousemove', _onMouseMove );
-			this.domElement.removeEventListener( 'mouseup', _onMouseUp );
 
 			window.removeEventListener( 'keydown', _onKeyDown );
 			window.removeEventListener( 'keyup', _onKeyUp );
@@ -298,15 +250,11 @@ class FirstPersonControls {
 		};
 
 		const _onMouseMove = this.onMouseMove.bind( this );
-		const _onMouseDown = this.onMouseDown.bind( this );
-		const _onMouseUp = this.onMouseUp.bind( this );
 		const _onKeyDown = this.onKeyDown.bind( this );
 		const _onKeyUp = this.onKeyUp.bind( this );
 
 		this.domElement.addEventListener( 'contextmenu', contextmenu );
 		this.domElement.addEventListener( 'mousemove', _onMouseMove );
-		this.domElement.addEventListener( 'mousedown', _onMouseDown );
-		this.domElement.addEventListener( 'mouseup', _onMouseUp );
 
 		window.addEventListener( 'keydown', _onKeyDown );
 		window.addEventListener( 'keyup', _onKeyUp );
