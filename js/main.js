@@ -4,11 +4,75 @@ import { FirstPersonControls } from "./FirstPersonControls.js";
 // import { GLTFLoader } from "./GLTFLoader.js";
 
 let tpg = {
-  clock: new THREE.Clock()
+  clock: new THREE.Clock(),
+  terrainGenerated: [],
+  waterData: {}
 }
 
-function setLightDefaults(light, lightTarget)
-{
+function generateTerrain(offsetX, offsetY) {
+  return new Promise(resolve => {
+    offsetX *= 8;
+    offsetY *= 8;
+
+    var canvas = document.createElement("canvas");
+    // document.body.appendChild(canvas); // testing
+
+    canvas.width = canvas.height = 256;
+    let ctx = canvas.getContext('2d');
+
+    const gridSize = 8;
+    const resolution = 64;
+    
+    let pixelSize = canvas.width / resolution;
+    let numPixels = gridSize / resolution;
+    
+    for (let y = offsetY; y < gridSize + offsetY; y += numPixels / gridSize){
+      for (let x = offsetX; x < gridSize + offsetX; x += numPixels / gridSize){
+        let v = parseInt((perlin.get(x, y) + 1) * 256 - 192) + (Math.random() - 0.5) * 16;
+        ctx.fillStyle = "rgb(" + v + ","+ v +"," + v + ")";
+        ctx.fillRect(
+          (x - offsetX) / gridSize * canvas.width,
+          (y - offsetY) / gridSize * canvas.width,
+          pixelSize,
+          pixelSize
+        );
+      }
+    }
+    
+    resolve(canvas.toDataURL());
+  });
+}
+
+async function prepareTerrain(x, y) {
+  const result = await generateTerrain(x, y);
+  createTerrain(x, y, result);
+  createWater(x, y);
+  tpg.terrainGenerated[x][y] = result;
+  setTimeout(workOnTerrain, 2500);
+}
+
+function workOnTerrain() {
+  let x = Math.round(tpg.camera.position.x / 512);
+  let y = Math.round(tpg.camera.position.z / 512);
+
+  // TODO: this is more of proof of concept, terrain should generate in front of player and closer to him
+  // so it should be rewritten to make it happen, altho right now there are other issues to fix
+
+  // TODO: terrain should be smaller when generated to prevent rederer lag
+  for(let xi = -1; xi <= 1; xi++) {
+    for(let yi = -1; yi <= 1; yi++) {
+      if(tpg.terrainGenerated[x + xi] === undefined) tpg.terrainGenerated[x + xi] = [];
+      switch(!tpg.terrainGenerated[x + xi][y + yi]) {
+        case true:
+          prepareTerrain(x + xi, y + yi);
+          return;
+      }
+    }
+  }
+  setTimeout(workOnTerrain, 1000);
+}
+
+function setLightDefaults(light, lightTarget) {
   light.castShadow = true;
   light.shadow.mapSize.width = 4096;
   light.shadow.mapSize.height = 4096;
@@ -24,8 +88,7 @@ function setLightDefaults(light, lightTarget)
   light.shadow.bias = - 0.011;
 }
 
-function setUpLights()
-{
+function setUpLights() {
   const light = new THREE.AmbientLight(0xAAAAFF);
   tpg.scene.add(light);
   
@@ -49,37 +112,24 @@ function setUpLights()
   setLightDefaults(tpg.secondaryLight, tpg.secondaryTarget)
 }
 
-function createWater()
+function createWater(x, y)
 {
-  const urls = [
-    "data/cubemap/left.png", "data/cubemap/right.png",
-    "data/cubemap/top.png", "data/cubemap/bottom.png",
-    "data/cubemap/back.png", "data/cubemap/front.png",
-  ];
-  const reflectionCube = new THREE.CubeTextureLoader().load( urls );
-  
-  const bumpMap = new THREE.TextureLoader().load("data/bumpWater.jpg");
-  bumpMap.wrapS = bumpMap.wrapT = THREE.RepeatWrapping;
-  tpg.waterDisplacement = new THREE.TextureLoader().load("data/waterDisplacementMap.png");
-  tpg.waterDisplacement.wrapS = tpg.waterDisplacement.wrapT = THREE.RepeatWrapping;
-  tpg.waterDisplacement.offset.set(0, 0);
-  tpg.waterDisplacement.repeat.set(32, 32);
-  const material = new THREE.MeshPhongMaterial({color: 0x353568, bumpMap: bumpMap, bumpScale: 0.025, displacementMap: tpg.waterDisplacement, envMap: reflectionCube, displacementScale: 0.75, displacementBias: 5, flatShading: true, transparent: true, opacity: 0.75, shininess: 25, reflectivity: 0.25});
+  const waterBox = new THREE.BoxGeometry(512, 1, 512, 256, 0, 256);
+  waterBox.translate(x * 512, 0, y * 512);
+  const waterMesh = new THREE.Mesh(waterBox, tpg.waterData.material);
 
-  const geometry = new THREE.BoxGeometry(1024, 1, 1024, 512, 0, 512);
-  const waterBox = new THREE.Mesh(geometry, material);
-
-  waterBox.castShadow = false;
-  waterBox.receiveShadow = true;
+  waterMesh.castShadow = false;
+  waterMesh.receiveShadow = true;
   
-  tpg.scene.add(waterBox);
+  tpg.scene.add(waterMesh);
 }
 
-function createTerrain(url)
-{
+function createTerrain(x, y, url) {
+  // TODO: rewrite this to not use displacement Maps, since they aren't reliable when tiled
   const perlinTexture = new THREE.TextureLoader().load(url);
 
-  const terrain = new THREE.BoxGeometry(1024, 1, 1024, 512, 0, 512);
+  const terrain = new THREE.BoxGeometry(512, 1, 512, 256, 0, 256);
+  terrain.translate(x * 512, 0, y * 512);
   const material = new THREE.MeshPhongMaterial({map: perlinTexture, displacementMap: perlinTexture, displacementScale: 150, displacementBias: 0, flatShading: true, shininess: 0});
   const terrainBox = new THREE.Mesh(terrain, material);
 
@@ -90,32 +140,6 @@ function createTerrain(url)
 }
 
 function init() {
-  var canvas = document.createElement("canvas");
-  // document.body.appendChild(canvas); // testing
-
-  canvas.width = canvas.height = 256;
-  let ctx = canvas.getContext('2d');
-
-  const gridSize = 8;
-  const resolution = 64;
-  
-  let pixelSize = canvas.width / resolution;
-  let numPixels = gridSize / resolution;
-  
-  for (let y = 0; y < gridSize; y += numPixels / gridSize){
-    for (let x = 0; x < gridSize; x += numPixels / gridSize){
-      let v = parseInt((perlin.get(x, y) + 1) * 256 - 192) + (Math.random() - 0.5) * 16;
-      ctx.fillStyle = "rgb(" + v + ","+ v +"," + v + ")";
-      ctx.fillRect(
-        x / gridSize * canvas.width,
-        y / gridSize * canvas.width,
-        pixelSize,
-        pixelSize
-      );
-    }
-  }
-  var url = canvas.toDataURL();
-
   tpg.scene = new THREE.Scene();
   tpg.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
   tpg.renderer = new THREE.WebGLRenderer({antialias: true});
@@ -125,10 +149,22 @@ function init() {
 
   tpg.scene.fog = new THREE.Fog(0xAAAAFF, 100, 700);
   tpg.scene.background = new THREE.Color(0xAAAAFF);
+
+  const urls = [
+    "data/cubemap/left.png", "data/cubemap/right.png",
+    "data/cubemap/top.png", "data/cubemap/bottom.png",
+    "data/cubemap/back.png", "data/cubemap/front.png",
+  ];
+  tpg.waterData.reflectionCube = new THREE.CubeTextureLoader().load(urls);
+  tpg.waterData.bumpMap = new THREE.TextureLoader().load("data/bumpWater.jpg");
+  tpg.waterData.bumpMap.wrapS = tpg.waterData.bumpMap.wrapT = THREE.RepeatWrapping;
+  tpg.waterData.waterDisplacement = new THREE.TextureLoader().load("data/waterDisplacementMap.png");
+  tpg.waterData.waterDisplacement.wrapS = tpg.waterData.waterDisplacement.wrapT = THREE.RepeatWrapping;
+  tpg.waterData.waterDisplacement.offset.set(0, 0);
+  tpg.waterData.waterDisplacement.repeat.set(32, 32);
+  tpg.waterData.material = new THREE.MeshPhongMaterial({color: 0x353568, bumpMap: tpg.waterData.bumpMap, bumpScale: 0.025, displacementMap: tpg.waterData.waterDisplacement, envMap: tpg.waterData.reflectionCube, displacementScale: 0.75, displacementBias: 5, flatShading: true, transparent: true, opacity: 0.75, shininess: 25, reflectivity: 0.25});
   
   setUpLights();
-  createWater();
-  createTerrain(url);
 
   let geometry = new THREE.SphereGeometry(12, 32, 32 );
   let material = new THREE.MeshBasicMaterial( {color: 0xfffff0, fog: false} );
@@ -154,6 +190,7 @@ function init() {
   tpg.controls.movementSpeed = 60;
 
   renderScene();
+  workOnTerrain();
 }
 init();
 
@@ -161,7 +198,7 @@ function renderScene() {
   requestAnimationFrame(renderScene);
   tpg.controls.update(tpg.clock.getDelta());
 
-  tpg.waterDisplacement.offset = new THREE.Vector2((new Date().getTime() / 100000)%1, (new Date().getTime() / 100000)%1);
+  tpg.waterData.waterDisplacement.offset = new THREE.Vector2((new Date().getTime() / 100000)%1, (new Date().getTime() / 100000)%1);
   
   // testing 
 
@@ -194,7 +231,6 @@ function renderScene() {
 
 window.addEventListener("resize", onWindowResize)
 function onWindowResize() {
-
   tpg.camera.aspect = window.innerWidth / window.innerHeight;
   tpg.camera.updateProjectionMatrix();
 
