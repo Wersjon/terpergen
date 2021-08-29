@@ -9,26 +9,24 @@ let tpg = {
 }
 
 function generateTerrain(offsetX, offsetY) {
+  offsetX *= 32;
+  offsetY *= 32;
   return new Promise(resolve => {
-    offsetX *= 2;
-    offsetY *= 2;
-
-    const gridSize = 2;
-    const resolution = 16;
-
     const array = [];
 
-    let numPixels = gridSize / resolution;
+    for (let x = offsetX; x <= 33 + offsetX; x++) {
+      for (let y = offsetY; y <= 33 + offsetY; y++) {
+        if (!array[(x - offsetX)]) array[(x - offsetX)] = [];
+        const terrainHeight = (perlin.get(x / 33 * 8, y / 33 * 8) + 1) * 256 - 192;
 
-    for (let y = offsetY; y <= gridSize + offsetY; y += numPixels / gridSize) {
-      for (let x = offsetX; x <= gridSize + offsetX; x += numPixels / gridSize) {
-        let v = parseInt((perlin.get(x * 4, y * 4) + 1) * 256 - 192);
-        console.log(v);
-        if (!array[(x - offsetX) * 16]) array[(x - offsetX) * 16] = [];
-        array[(x - offsetX) * 16][(y - offsetY) * 16] = v / 2 * perlin.get(x, y) ^ 2;
+        // console.log(perlin.get(x + 256, y + 256));
+        const prettyGoodTerrain = terrainHeight * perlin.get(x / 33, y / 33) ^ 2;
+        // const terrainTesting = terrainHeight;
+        array[(x - offsetX)][(y - offsetY)] = prettyGoodTerrain;
       }
     }
 
+    console.log(array);
     resolve(array);
   });
 }
@@ -47,7 +45,7 @@ function workOnTerrain() {
 
   for (let xi = -1; xi <= 1; xi++) {
     for (let yi = -1; yi <= 1; yi++) {
-      if (tpg.terrainGenerated[x + xi] === undefined) tpg.terrainGenerated[x + xi] = [];
+      if (!tpg.terrainGenerated[x + xi]) tpg.terrainGenerated[x + xi] = [];
 
       if (!tpg.terrainGenerated[x + xi][y + yi]) {
         prepareTerrain(x + xi, y + yi);
@@ -60,8 +58,8 @@ function workOnTerrain() {
 
 function setLightDefaults(light, lightTarget) {
   light.castShadow = true;
-  light.shadow.mapSize.width = 8192;
-  light.shadow.mapSize.height = 8192;
+  light.shadow.mapSize.width = 4196;
+  light.shadow.mapSize.height = 4196;
   light.shadow.camera.near = 0.5;
   light.shadow.camera.far = 1500;
 
