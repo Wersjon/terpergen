@@ -22,12 +22,16 @@ function generateTerrain(offsetX, offsetY) {
     const gridSize = 2;
     const resolution = 16;
 
+    const array = [];
+
     let pixelSize = canvas.width / resolution;
     let numPixels = gridSize / resolution;
 
-    for (let y = offsetY; y < gridSize + offsetY; y += numPixels / gridSize) {
-      for (let x = offsetX; x < gridSize + offsetX; x += numPixels / gridSize) {
-        let v = parseInt((perlin.get(x, y) + 1) * 256 - 192) + (Math.random() - 0.5) * 16;
+    for (let y = offsetY; y <= gridSize + offsetY; y += numPixels / gridSize) {
+      for (let x = offsetX; x <= gridSize + offsetX; x += numPixels / gridSize) {
+        let v = parseInt((perlin.get(x, y) + 1) * 256 - 192 + perlin.get(y, x) * 64);
+        if (!array[(x - offsetX) * 16]) array[(x - offsetX) * 16] = [];
+        array[(x - offsetX) * 16][(y - offsetY) * 16] = v / 4;
         ctx.fillStyle = "rgb(" + v + "," + v + "," + v + ")";
         ctx.fillRect(
           (x - offsetX) / gridSize * canvas.width,
@@ -38,13 +42,13 @@ function generateTerrain(offsetX, offsetY) {
       }
     }
 
-    resolve(canvas.toDataURL());
+    resolve([canvas.toDataURL(), array]);
   });
 }
 
 async function prepareTerrain(x, y) {
-  const result = await generateTerrain(x, y);
-  createTerrain(x, y, result);
+  const [result, array] = await generateTerrain(x, y);
+  createTerrain(x, y, result, array);
   createWater(x, y);
   tpg.terrainGenerated[x][y] = result;
   setTimeout(workOnTerrain, 2500);
@@ -122,25 +126,65 @@ function createWater(x, y) {
   tpg.scene.add(waterMesh);
 }
 
-function createTerrain(x, y, url) {
-  // TODO: rewrite this to not use displacement Maps, since they aren't reliable when tiled
+function createTerrain(x, y, url, array) {
+  x -= 0.5;
+  y -= 0.5;
   const perlinTexture = new THREE.TextureLoader().load(url);
 
-  const terrain = new THREE.BoxGeometry(128, 1, 128, 64, 0, 64);
-  terrain.translate(x * 128, 0, y * 128);
+  const terrain = new THREE.BufferGeometry();
+  const verticesArray = [];
+  const size = 128;
+  const tileCount = 32;
+  const tileSize = size;
+  const sizeOffset = size / tileCount / (size * 2 / tileCount) / tileCount;
+  // THE FUCK IS SIZE OFFSET
+
+  for(let xRow = 1; xRow < 33; xRow++) {
+    for(let yRow = 1; yRow < 33; yRow++) {
+      const previousX = xRow === 0 ? 0 : xRow - 1;
+      const nextX = xRow;
+      const previousY = yRow === 0 ? 0 : yRow - 1;
+      const nextY = yRow;
+
+      verticesArray.push((xRow / tileCount + x - sizeOffset) * tileSize);
+      verticesArray.push(array[previousX][previousY]); // --
+      verticesArray.push((yRow / tileCount + y - sizeOffset) * tileSize);
+
+      verticesArray.push((xRow / tileCount + x + sizeOffset) * tileSize);
+      verticesArray.push(array[nextX][nextY]); // ++
+      verticesArray.push((yRow / tileCount + y + sizeOffset) * tileSize);
+
+      verticesArray.push((xRow / tileCount + x - sizeOffset) * tileSize);
+      verticesArray.push(array[previousX][nextY]); // -+
+      verticesArray.push((yRow / tileCount + y + sizeOffset) * tileSize);
+
+      verticesArray.push((xRow / tileCount + x - sizeOffset) * tileSize);
+      verticesArray.push(array[previousX][previousY]); // --
+      verticesArray.push((yRow / tileCount + y - sizeOffset) * tileSize);
+
+      verticesArray.push((xRow / tileCount + x + sizeOffset) * tileSize);
+      verticesArray.push(array[nextX][nextY]); // ++
+      verticesArray.push((yRow / tileCount + y + sizeOffset) * tileSize);
+
+      verticesArray.push((xRow / tileCount + x + sizeOffset) * tileSize);
+      verticesArray.push(array[nextX][previousY]); // +-
+      verticesArray.push((yRow / tileCount + y - sizeOffset) * tileSize);
+    }
+  }
+  const vertices = new Float32Array(verticesArray);
+
+  terrain.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+  terrain.computeVertexNormals();
   const material = new THREE.MeshPhongMaterial({
-    map: perlinTexture,
-    displacementMap: perlinTexture,
-    displacementScale: 64,
-    displacementBias: 0,
+    // map: perlinTexture,
+    color: 0x808080,
+    side: THREE.DoubleSide,
     flatShading: true,
     shininess: 0,
   });
   const terrainBox = new THREE.Mesh(terrain, material);
-
   terrainBox.castShadow = true;
   terrainBox.receiveShadow = true;
-
   tpg.scene.add(terrainBox);
 }
 
