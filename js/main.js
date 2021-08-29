@@ -13,44 +13,31 @@ function generateTerrain(offsetX, offsetY) {
     offsetX *= 2;
     offsetY *= 2;
 
-    var canvas = document.createElement("canvas");
-    // document.body.appendChild(canvas); // testing
-
-    canvas.width = canvas.height = 64;
-    let ctx = canvas.getContext('2d');
-
     const gridSize = 2;
     const resolution = 16;
 
     const array = [];
 
-    let pixelSize = canvas.width / resolution;
     let numPixels = gridSize / resolution;
 
     for (let y = offsetY; y <= gridSize + offsetY; y += numPixels / gridSize) {
       for (let x = offsetX; x <= gridSize + offsetX; x += numPixels / gridSize) {
-        let v = parseInt((perlin.get(x, y) + 1) * 256 - 192 + perlin.get(y, x) * 64);
+        let v = parseInt((perlin.get(x * 4, y * 4) + 1) * 256 - 192);
+        console.log(v);
         if (!array[(x - offsetX) * 16]) array[(x - offsetX) * 16] = [];
-        array[(x - offsetX) * 16][(y - offsetY) * 16] = v / 4;
-        ctx.fillStyle = "rgb(" + v + "," + v + "," + v + ")";
-        ctx.fillRect(
-          (x - offsetX) / gridSize * canvas.width,
-          (y - offsetY) / gridSize * canvas.width,
-          pixelSize,
-          pixelSize
-        );
+        array[(x - offsetX) * 16][(y - offsetY) * 16] = v / 2 * perlin.get(x, y) ^ 2;
       }
     }
 
-    resolve([canvas.toDataURL(), array]);
+    resolve(array);
   });
 }
 
 async function prepareTerrain(x, y) {
-  const [result, array] = await generateTerrain(x, y);
-  createTerrain(x, y, result, array);
+  const array = await generateTerrain(x, y);
+  createTerrain(x, y, array);
   createWater(x, y);
-  tpg.terrainGenerated[x][y] = result;
+  tpg.terrainGenerated[x][y] = array;
   setTimeout(workOnTerrain, 2500);
 }
 
@@ -58,10 +45,6 @@ function workOnTerrain() {
   let x = Math.round(tpg.camera.position.x / 512);
   let y = Math.round(tpg.camera.position.z / 512);
 
-  // TODO: this is more of proof of concept, terrain should generate in front of player and closer to him
-  // so it should be rewritten to make it happen, altho right now there are other issues to fix
-
-  // TODO: terrain should be smaller when generated to prevent rederer lag
   for (let xi = -1; xi <= 1; xi++) {
     for (let yi = -1; yi <= 1; yi++) {
       if (tpg.terrainGenerated[x + xi] === undefined) tpg.terrainGenerated[x + xi] = [];
@@ -77,8 +60,8 @@ function workOnTerrain() {
 
 function setLightDefaults(light, lightTarget) {
   light.castShadow = true;
-  light.shadow.mapSize.width = 4096;
-  light.shadow.mapSize.height = 4096;
+  light.shadow.mapSize.width = 8192;
+  light.shadow.mapSize.height = 8192;
   light.shadow.camera.near = 0.5;
   light.shadow.camera.far = 1500;
 
@@ -88,7 +71,7 @@ function setLightDefaults(light, lightTarget) {
   light.shadow.camera.bottom = -1000;
 
   light.target = lightTarget;
-  light.shadow.bias = -0.011;
+  light.shadow.bias = -0.0005;
 }
 
 function setUpLights() {
@@ -103,16 +86,6 @@ function setUpLights() {
   tpg.scene.add(tpg.sunTarget);
 
   setLightDefaults(tpg.sunLight, tpg.sunTarget);
-
-  tpg.secondaryLight = new THREE.DirectionalLight(0xAAAAFF, 0.25, 100);
-  tpg.secondaryLight.position.set(-800, 200, 300);
-  tpg.secondaryLight.castShadow = true;
-  tpg.scene.add(tpg.secondaryLight);
-
-  tpg.secondaryTarget = new THREE.Object3D();
-  tpg.scene.add(tpg.secondaryTarget);
-
-  setLightDefaults(tpg.secondaryLight, tpg.secondaryTarget);
 }
 
 function createWater(x, y) {
@@ -126,10 +99,9 @@ function createWater(x, y) {
   tpg.scene.add(waterMesh);
 }
 
-function createTerrain(x, y, url, array) {
+function createTerrain(x, y, array) {
   x -= 0.5;
   y -= 0.5;
-  const perlinTexture = new THREE.TextureLoader().load(url);
 
   const terrain = new THREE.BufferGeometry();
   const verticesArray = [];
@@ -137,7 +109,7 @@ function createTerrain(x, y, url, array) {
   const tileCount = 32;
   const tileSize = size;
   const sizeOffset = size / tileCount / (size * 2 / tileCount) / tileCount;
-  // THE FUCK IS SIZE OFFSET
+  // THE FUCK IS SIZE OFFSET ?????????????????
 
   for(let xRow = 1; xRow < 33; xRow++) {
     for(let yRow = 1; yRow < 33; yRow++) {
@@ -177,10 +149,10 @@ function createTerrain(x, y, url, array) {
   terrain.computeVertexNormals();
   const material = new THREE.MeshPhongMaterial({
     // map: perlinTexture,
-    color: 0x808080,
+    color: 0x404040,
     side: THREE.DoubleSide,
-    flatShading: true,
-    shininess: 0,
+    flatShading: false,
+    shininess: 16,
   });
   const terrainBox = new THREE.Mesh(terrain, material);
   terrainBox.castShadow = true;
@@ -265,19 +237,11 @@ function renderScene() {
 
   tpg.waterData.waterDisplacement.offset = new THREE.Vector2((new Date().getTime() / 100000) % 1, (new Date().getTime() / 100000) % 1);
 
-  // testing 
-
-  // texture.offset = new THREE.Vector2(tpg.camera.position.x / 100, -tpg.camera.position.z / 100);
-  // texture.offset = new THREE.Vector2((tpg.camera.position.x / 50)%1, (-tpg.camera.position.z / 50)%1);
-
   tpg.sun.position.x = tpg.camera.position.x + 800;
   tpg.sun.position.y = tpg.camera.position.y + 200;
   tpg.sun.position.z = tpg.camera.position.z + 300;
   tpg.sunLight.position.set(tpg.camera.position.x + 800, 200, tpg.camera.position.z + 300);
   tpg.sunTarget.position.set(tpg.camera.position.x, 0, tpg.camera.position.z);
-
-  tpg.secondaryLight.position.set(tpg.camera.position.x - 800, 200, tpg.camera.position.z - 300);
-  tpg.secondaryTarget.position.set(tpg.camera.position.x, 0, tpg.camera.position.z);
 
   // water effect: [wip]
   /*
