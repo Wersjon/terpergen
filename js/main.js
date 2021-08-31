@@ -8,6 +8,29 @@ let tpg = {
   waterData: {}
 }
 
+const _VS = `
+uniform float pointMultiplier;
+attribute float size;
+attribute vec4 colors;
+varying vec4 vColor;
+varying vec2 vAngle;
+void main() {
+  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  gl_Position = projectionMatrix * mvPosition * 0.5;
+  gl_PointSize = size * pointMultiplier / gl_Position.w;
+  vAngle = vec2(cos(0.0), sin(0.0));
+  vColor = colors;
+}`;
+
+const _FS = `
+uniform sampler2D diffuseTexture;
+varying vec4 vColor;
+varying vec2 vAngle;
+void main() {
+  vec2 coords = (gl_PointCoord - 0.5) * mat2(vAngle.x, vAngle.y, -vAngle.y, vAngle.x) + 0.5;
+  gl_FragColor = texture2D(diffuseTexture, coords) * vColor;
+}`;
+
 function generateTerrain(offsetX, offsetY) {
   offsetX *= 32;
   offsetY *= 32;
@@ -33,10 +56,55 @@ function generateTerrain(offsetX, offsetY) {
 
 async function prepareTerrain(x, y) {
   const array = await generateTerrain(x, y);
-  createTerrain(x, y, array);
   createWater(x, y);
+  createTerrain(x, y, array);
   tpg.terrainGenerated[x][y] = array;
   setTimeout(workOnTerrain, 2500);
+}
+
+function particleGenerator(x, y) {
+  const vertices = [];
+  const size = [];
+  const colors = [];
+
+  const sprite = new THREE.TextureLoader().load('data/fog.png');
+
+  for(let i1 = 0; i1 < 200; i1++) {
+    const x1 = x * 128 + Math.random() * 128;
+    const y1 = Math.random() * 20 + 10; //+ 250;
+    const z1 = y * 128 + Math.random() * 128;
+
+    vertices.push(x1, y1, z1);
+    size.push(Math.random() * 40 + 30);
+    colors.push(1, 1, 1, 1);
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setAttribute('size', new THREE.Float32BufferAttribute(size, 1));
+  geometry.setAttribute('colors', new THREE.Float32BufferAttribute(colors, 4));
+
+  const testMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      diffuseTexture: {
+        value: sprite
+      },
+      pointMultiplier: {
+          value: window.innerHeight / (2.0 * Math.tan(0.5 * 60.0 * Math.PI / 180.0))
+      }
+    },
+    vertexShader: _VS,
+    fragmentShader: _FS,
+    blending: THREE.NormalBlending,
+    depthTest: true,
+    depthWrite: false,
+    transparent: true,
+    vertexColors: true,
+  })
+  const particles = new THREE.Points(geometry, testMaterial);
+  particles.renderOrder = 1;
+
+  tpg.scene.add(particles);
 }
 
 function workOnTerrain() {
@@ -73,11 +141,11 @@ function setLightDefaults(light, lightTarget) {
 }
 
 function setUpLights() {
-  const light = new THREE.AmbientLight(0xAAAAFF);
+  const light = new THREE.AmbientLight(0xA7A7FC);
   tpg.scene.add(light);
 
   tpg.sunLight = new THREE.DirectionalLight(0xFFFFFF, 1, 100);
-  tpg.sunLight.position.set(800, 200, 300);
+  tpg.sunLight.position.set(400, 100, 150);
   tpg.scene.add(tpg.sunLight);
 
   tpg.sunTarget = new THREE.Object3D();
@@ -155,6 +223,7 @@ function createTerrain(x, y, array) {
   const terrainBox = new THREE.Mesh(terrain, material);
   terrainBox.castShadow = true;
   terrainBox.receiveShadow = true;
+  particleGenerator(x, y);
   tpg.scene.add(terrainBox);
 }
 
@@ -189,14 +258,14 @@ function setUpWaterData() {
 
 function init() {
   tpg.scene = new THREE.Scene();
-  tpg.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  tpg.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500);
   tpg.renderer = new THREE.WebGLRenderer({ antialias: true });
 
   tpg.renderer.shadowMap.enabled = true;
   tpg.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-  tpg.scene.fog = new THREE.Fog(0xAAAAFF, 100, 700);
-  tpg.scene.background = new THREE.Color(0xAAAAFF);
+  tpg.scene.fog = new THREE.Fog(0xA7A7FC, 100, 300);
+  tpg.scene.background = new THREE.Color(0xA7A7FC);
 
   setUpLights();
   setUpWaterData();
@@ -235,10 +304,10 @@ function renderScene() {
 
   tpg.waterData.waterDisplacement.offset = new THREE.Vector2((new Date().getTime() / 100000) % 1, (new Date().getTime() / 100000) % 1);
 
-  tpg.sun.position.x = tpg.camera.position.x + 800;
-  tpg.sun.position.y = tpg.camera.position.y + 200;
-  tpg.sun.position.z = tpg.camera.position.z + 300;
-  tpg.sunLight.position.set(tpg.camera.position.x + 800, 200, tpg.camera.position.z + 300);
+  tpg.sun.position.x = tpg.camera.position.x + 400;
+  tpg.sun.position.y = tpg.camera.position.y + 100;
+  tpg.sun.position.z = tpg.camera.position.z + 150;
+  tpg.sunLight.position.set(tpg.camera.position.x + 400, 100, tpg.camera.position.z + 150);
   tpg.sunTarget.position.set(tpg.camera.position.x, 0, tpg.camera.position.z);
 
   // water effect: [wip]
