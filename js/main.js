@@ -49,7 +49,7 @@ function generateTerrain(offsetX, offsetY) {
       }
     }
 
-    console.log(array);
+    // console.log(array);
     resolve(array);
   });
 }
@@ -69,14 +69,16 @@ function particleGenerator(x, y) {
 
   const sprite = new THREE.TextureLoader().load('data/fog.png');
 
-  for(let i1 = 0; i1 < 200; i1++) {
-    const x1 = x * 128 + Math.random() * 128;
-    const y1 = Math.random() * 20 + 10; //+ 250;
-    const z1 = y * 128 + Math.random() * 128;
-
-    vertices.push(x1, y1, z1);
-    size.push(Math.random() * 40 + 30);
-    colors.push(1, 1, 1, 1);
+  for(let xI = 0; xI < 8; xI++) {
+    for(let zI = 0; zI < 8; zI++) {
+      const xPos = x * 128 + xI * 16 + Math.random() * 16;
+      const yPos = Math.random() * 20 + 10;
+      const zPos = y * 128 + zI * 16 + Math.random() * 16;
+  
+      vertices.push(xPos, yPos, zPos);
+      size.push(Math.random() * 40 + 30);
+      colors.push(1, 1, 1, 1.25);
+    }
   }
 
   const geometry = new THREE.BufferGeometry();
@@ -90,7 +92,7 @@ function particleGenerator(x, y) {
         value: sprite
       },
       pointMultiplier: {
-          value: window.innerHeight / (2.0 * Math.tan(0.5 * 60.0 * Math.PI / 180.0))
+          value: window.innerHeight / (1.0 * Math.tan(0.5 * 60.0 * Math.PI / 180.0))
       }
     },
     vertexShader: _VS,
@@ -126,10 +128,10 @@ function workOnTerrain() {
 
 function setLightDefaults(light, lightTarget) {
   light.castShadow = true;
-  light.shadow.mapSize.width = 4196;
-  light.shadow.mapSize.height = 4196;
+  light.shadow.mapSize.width = 2048;
+  light.shadow.mapSize.height = 2048;
   light.shadow.camera.near = 0.5;
-  light.shadow.camera.far = 1500;
+  light.shadow.camera.far = 600;
 
   light.shadow.camera.left = -1000;
   light.shadow.camera.right = 1000;
@@ -137,7 +139,7 @@ function setLightDefaults(light, lightTarget) {
   light.shadow.camera.bottom = -1000;
 
   light.target = lightTarget;
-  light.shadow.bias = -0.0005;
+  light.shadow.bias = -0.005;
 }
 
 function setUpLights() {
@@ -214,7 +216,6 @@ function createTerrain(x, y, array) {
   terrain.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
   terrain.computeVertexNormals();
   const material = new THREE.MeshPhongMaterial({
-    // map: perlinTexture,
     color: 0x404040,
     side: THREE.DoubleSide,
     flatShading: false,
@@ -228,24 +229,13 @@ function createTerrain(x, y, array) {
 }
 
 function setUpWaterData() {
-  const urls = [
-    "data/cubemap/left.png", "data/cubemap/right.png",
-    "data/cubemap/top.png", "data/cubemap/bottom.png",
-    "data/cubemap/back.png", "data/cubemap/front.png",
-  ];
-  tpg.waterData.reflectionCube = new THREE.CubeTextureLoader().load(urls);
-  tpg.waterData.bumpMap = new THREE.TextureLoader().load("data/bumpWater.jpg");
-  tpg.waterData.bumpMap.wrapS = tpg.waterData.bumpMap.wrapT = THREE.RepeatWrapping;
   tpg.waterData.waterDisplacement = new THREE.TextureLoader().load("data/waterDisplacementMap.png");
   tpg.waterData.waterDisplacement.wrapS = tpg.waterData.waterDisplacement.wrapT = THREE.RepeatWrapping;
   tpg.waterData.waterDisplacement.offset.set(0, 0);
   tpg.waterData.waterDisplacement.repeat.set(32, 32);
   tpg.waterData.material = new THREE.MeshPhongMaterial({
     color: 0x353568,
-    bumpMap: tpg.waterData.bumpMap,
-    bumpScale: 0.01,
     displacementMap: tpg.waterData.waterDisplacement,
-    envMap: tpg.waterData.reflectionCube,
     displacementScale: 0.5,
     displacementBias: 5,
     flatShading: true,
@@ -258,8 +248,8 @@ function setUpWaterData() {
 
 function init() {
   tpg.scene = new THREE.Scene();
-  tpg.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500);
-  tpg.renderer = new THREE.WebGLRenderer({ antialias: true });
+  tpg.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 300);
+  tpg.renderer = new THREE.WebGLRenderer(); // { antialias: true }
 
   tpg.renderer.shadowMap.enabled = true;
   tpg.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -302,12 +292,11 @@ function renderScene() {
   requestAnimationFrame(renderScene);
   tpg.controls.update(tpg.clock.getDelta());
 
-  tpg.waterData.waterDisplacement.offset = new THREE.Vector2((new Date().getTime() / 100000) % 1, (new Date().getTime() / 100000) % 1);
-
-  tpg.sun.position.x = tpg.camera.position.x + 400;
-  tpg.sun.position.y = tpg.camera.position.y + 100;
-  tpg.sun.position.z = tpg.camera.position.z + 150;
-  tpg.sunLight.position.set(tpg.camera.position.x + 400, 100, tpg.camera.position.z + 150);
+  tpg.waterData.waterDisplacement.offset = new THREE.Vector2((new Date().getTime() / 60000) % 2, (new Date().getTime() / 60000) % 2);
+  tpg.sun.position.x = tpg.camera.position.x + 275;
+  tpg.sun.position.y = tpg.camera.position.y + 65;
+  tpg.sun.position.z = tpg.camera.position.z + 100;
+  tpg.sunLight.position.set(tpg.camera.position.x + 300, 75, tpg.camera.position.z + 125);
   tpg.sunTarget.position.set(tpg.camera.position.x, 0, tpg.camera.position.z);
 
   // water effect: [wip]
