@@ -291,8 +291,8 @@ function workOnTerrain() {
 
 function setLightDefaults(light, lightTarget) {
   light.castShadow = true;
-  light.shadow.mapSize.width = 4196;
-  light.shadow.mapSize.height = 4196;
+  light.shadow.mapSize.width = 4096;
+  light.shadow.mapSize.height = 4096;
   light.shadow.camera.near = 0.5;
   light.shadow.camera.far = 600;
   light.shadow.camera.left = -1000;
