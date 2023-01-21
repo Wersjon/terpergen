@@ -1,5 +1,4 @@
 import * as THREE from "./three.module.js";
-import { FirstPersonControls } from "./FirstPersonControls.js";
 
 THREE.BufferGeometry.prototype.toIndexed = function () {
   let list = [], vertices = {};
@@ -172,7 +171,9 @@ THREE.BufferGeometry.prototype.toIndexed = function () {
 let tpg = {
   clock: new THREE.Clock(),
   terrainGenerated: [],
-  waterData: {}
+  fogs: [],
+  waterData: {},
+  heights: [],
 }
 
 const _VS = `
@@ -209,10 +210,8 @@ function generateTerrain(offsetX, offsetY) {
         if (!array[(x - offsetX)]) array[(x - offsetX)] = [];
         const terrainHeight = (perlin.get(x / 33 * 8, y / 33 * 8) + 1) * 256 - 192;
 
-        // const prettyGoodTerrain = terrainHeight * perlin.get(x / 33, y / 33) ^ 2;
-        // const terrainTesting = terrainHeight;
-        // const prettyRockyTerrain = (perlin.get(x / 64, y / 64) * terrainHeight) + 8;
-        array[(x - offsetX)][(y - offsetY)] = (perlin.get(x / 64, y / 64) * terrainHeight) + 8;
+        tpg.heights.push((perlin.get(x / 64, y / 64) * terrainHeight) + 8);
+        array[(x - offsetX)][(y - offsetY)] = tpg.heights.at(-1);
       }
     }
 
@@ -234,14 +233,16 @@ function particleGenerator(x, y) {
 
   const sprite = new THREE.TextureLoader().load('data/old_old.png');
 
-  for (let xI = 0; xI < 8; xI++) {
-    for (let zI = 0; zI < 8; zI++) {
+  for (let xI = 0; xI < (Math.random() * 10 % 10); xI++) {
+    for (let zI = 0; zI < (Math.random() * 10 % 10); zI++) {
       const xPos = x * 128 + xI * 16 + Math.random() * 16;
       const yPos = Math.random() * 20 + 10;
       const zPos = y * 128 + zI * 16 + Math.random() * 16;
 
       vertices.push(xPos, yPos, zPos);
-      size.push(Math.random() * 20 + 30);
+      const randSize = Math.random() * 20 + 30;
+      size.push(randSize);
+      tpg.fogs.push(randSize);
     }
   }
 
@@ -282,11 +283,9 @@ function workOnTerrain() {
 
       if (!tpg.terrainGenerated[x + xi][y + yi]) {
         prepareTerrain(x + xi, y + yi);
-        return;
       }
     }
   }
-  setTimeout(workOnTerrain, 1000);
 }
 
 function setLightDefaults(light, lightTarget) {
@@ -468,7 +467,9 @@ function setUpWaterData() {
   });
 }
 
-function init() {
+const formatNumber = (number) => new Intl.NumberFormat('en-IN', { maximumSignificantDigits: 3 }).format(number);
+
+async function init() {
   tpg.count = 0;
   tpg.scene = new THREE.Scene();
   tpg.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 300);
@@ -490,23 +491,12 @@ function init() {
   tpg.sun = new THREE.Mesh(geometry, material);
   tpg.scene.add(tpg.sun);
 
-  tpg.camera.position.set(0, 3, 5);
-  tpg.camera.rotation.x = 0;
+  tpg.camera.position.set(4, 50, -190);
+  tpg.camera.rotation.set(-3, -0.02, -3.13);
 
   document.body.appendChild(tpg.renderer.domElement);
 
   tpg.renderer.setSize(window.innerWidth, window.innerHeight);
-
-  tpg.renderer.domElement.onclick = () => {
-    tpg.renderer.domElement.requestPointerLock();
-  };
-
-  tpg.renderer.domElement.requestPointerLock = tpg.renderer.domElement.requestPointerLock || tpg.renderer.domElement.mozRequestPointerLock;
-  document.exitPointerLock = document.exitPointerLock || document.mozExitPointerLock;
-
-  tpg.controls = new FirstPersonControls(tpg.camera, tpg.renderer.domElement);
-  tpg.controls.lookSpeed = 0.5;
-  tpg.controls.movementSpeed = 20;
 
   tpg.flashlight = new THREE.SpotLight(0xFFFFFF, 1, 48.0, Math.PI / 4.5, 1.0);
   document.addEventListener("keypress", function (keyPressData) {
@@ -530,13 +520,19 @@ function init() {
   tpg.flashlight.target = tpg.flashlightTarget;
 
   renderScene();
-  workOnTerrain();
+  await workOnTerrain();
+  console.log(tpg.fogs);
+  document.getElementById('avgHeight').innerHTML = formatNumber(tpg.heights.reduce((a, b) => a + b, 0) / tpg.heights.length, 2);
+  document.getElementById('maxHeight').innerHTML = formatNumber(tpg.heights.reduce((a, b) => a > b ? a : b, 0));
+  document.getElementById('minHeight').innerHTML = formatNumber(tpg.heights.reduce((a, b) => a < b ? a : b, 0));
+  const fogSize = tpg.fogs.reduce((a, b) => a + b, 0) / tpg.fogs.length;
+  document.getElementById('fogSize').innerHTML = formatNumber(fogSize, 2);
+  document.getElementById('fogDensity').innerHTML = formatNumber((tpg.fogs.length * fogSize) / (9 * 128)); // 9 tiles with width and height of 128
 }
 init();
 
 function renderScene() {
   requestAnimationFrame(renderScene);
-  tpg.controls.update(tpg.clock.getDelta());
 
   tpg.waterData.waterDisplacement.offset = new THREE.Vector2((new Date().getTime() / 120000) % 2, (new Date().getTime() / 120000) % 2);
   tpg.waterData.waterBump.offset = new THREE.Vector2((new Date().getTime() / 120000) % 2, (new Date().getTime() / 120000) % 2);

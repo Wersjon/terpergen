@@ -1,27 +1,52 @@
 <!DOCTYPE html>
 <html>
-	<head>
-		<meta charset="utf-8">
-		<title>3D test</title>
-		<style>
-			body {
-				margin: 0;
-        background: black;
-			}
-      #waterEffect {
-        position: absolute;
-        width: 100%;
-        height: 100%;
-        background: #3333AA80;
-        pointer-events: none;
-        z-index: 5;
-        opacity: 0;
-      }
-		</style>
-	</head>
-	<body>
-    <div id="waterEffect"></div>
-		<script type="module" src="./js/main.js"></script>
-		<script src="./js/perlin.js"></script>
-	</body>
+
+<head>
+  <meta charset="utf-8">
+  <title>3D test</title>
+  <style>
+    body {
+      font-family: Arial;
+      margin: 0;
+      background: black;
+    }
+
+    #waterEffect {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background: #3333AA80;
+      pointer-events: none;
+      z-index: 5;
+      opacity: 0;
+    }
+
+    #menu {
+      padding: 0.5rem;
+      box-sizing: border-box;
+      position: absolute;
+      background: #000000B0;
+      color: white;
+      width: 100%;
+      height: 96px;
+      bottom: 0;
+      left: 0;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="waterEffect"></div>
+  <div id="menu">
+    <button onclick="window.location.reload()">Przeładuj</button><br />
+    <b>Średnia wysokość terenu:</b> <span id="avgHeight"></span>;&nbsp;
+    <b>Maksymalna wysokość terenu:</b> <span id="maxHeight"></span>;&nbsp;
+    <b>Minimalna wysokość terenu:</b> <span id="minHeight"></span>;&nbsp;
+    <b>Gęstość mgły:</b> <span id="fogDensity"></span>;&nbsp;
+    <b>Wielkość mgły [jak wysoko i szeroko idzie względem środka]:</b> <span id="fogSize"></span>;&nbsp;
+  </div>
+  <script type="module" src="./js/main.js"></script>
+  <script src="./js/perlin.js"></script>
+</body>
+
 </html>
