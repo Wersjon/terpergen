@@ -507,7 +507,6 @@ async function init() {
         const cube = new THREE.Mesh(geometry, tpg.testMaterial);
         cube.position.set(tpg.camera.position.x, tpg.camera.position.y, tpg.camera.position.z);
         tpg.scene.add(cube);
-        console.log(123);
         tpg.flashlight.intensity -= 1;
         break;
     }
@@ -521,7 +520,6 @@ async function init() {
 
   renderScene();
   await workOnTerrain();
-  console.log(tpg.fogs);
   document.getElementById('avgHeight').innerHTML = formatNumber(tpg.heights.reduce((a, b) => a + b, 0) / tpg.heights.length, 2);
   document.getElementById('maxHeight').innerHTML = formatNumber(tpg.heights.reduce((a, b) => a > b ? a : b, 0));
   document.getElementById('minHeight').innerHTML = formatNumber(tpg.heights.reduce((a, b) => a < b ? a : b, 0));
